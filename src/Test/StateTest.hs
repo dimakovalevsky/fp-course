@@ -84,6 +84,7 @@ applicativeTest =
   , testCase "complicated <*>" $
       let state = State (\s -> ((+3), s P.++ ["apple"])) <*> State (\s -> (7, s P.++ ["banana"]))
        in runState state [] @?= (10,["apple","banana"])
+  , testCase "put & get" $ runState (const id <$> put 1 <*> get) 0 @?= (1,1)
   ]
 
 monadTest :: TestTree
