@@ -96,7 +96,7 @@ instance Applicative (State s) where
     State s (a -> b)
     -> State s a
     -> State s b
-  a <*> b = State (\c -> (eval a c (eval b c), exec b . exec a $ c))
+  a <*> b = State (\c -> (eval a c (eval b (exec a c)), exec b . exec a $ c))
 
 -- | Implement the `Monad` instance for `State s`.
 --
@@ -134,8 +134,8 @@ findM ::
   (a -> f Bool)
   -> List a
   -> f (Optional a)
-findM =
-  error "todo: Course.State#findM"
+findM _ Nil = pure Empty
+findM f (h :. t) = (\p -> if p then pure (Full h) else findM f t) =<< f h
 
 -- | Find the first element in a `List` that repeats.
 -- It is possible that no element repeats, hence an `Optional` result.
@@ -147,12 +147,14 @@ findM =
 --
 -- prop> \xs -> case firstRepeat xs of Empty -> let xs' = hlist xs in nub xs' == xs'; Full x -> length (filter (== x) xs) > 1
 -- prop> \xs -> case firstRepeat xs of Empty -> True; Full x -> let (l, (rx :. rs)) = span (/= x) xs in let (l2, r2) = span (/= x) rs in let l3 = hlist (l ++ (rx :. Nil) ++ l2) in nub l3 == l3
+
 firstRepeat ::
   Ord a =>
   List a
-  -> Optional a
-firstRepeat =
-  error "todo: Course.State#firstRepeat"
+  -> Optional a 
+firstRepeat l = eval (findM p l) S.empty where
+                p x = (\s -> const (pure (S.member x s)) =<< put (S.insert x s)) =<< get
+-- firstRepeat = error "asdasd"
 
 -- | Remove all duplicate elements in a `List`.
 -- /Tip:/ Use `filtering` and `State` with a @Data.Set#Set@.
@@ -164,8 +166,11 @@ distinct ::
   Ord a =>
   List a
   -> List a
-distinct =
-  error "todo: Course.State#distinct"
+-- distinct l = distinctPart l S.empty where
+--              distinctPart Nil _ = Nil
+--              distinctPart (h :. t) s = if S.notMember h s then h :. distinctPart t (S.insert h s) else distinctPart t s
+distinct l = eval (filtering p l) S.empty where
+             p x = (\s -> const (pure (S.notMember x s)) =<< put (S.insert x s)) =<< get
 
 -- | A happy number is a positive integer, where the sum of the square of its digits eventually reaches 1 after repetition.
 -- In contrast, a sad number (not a happy number) is where the sum of the square of its digits never reaches 1
@@ -191,5 +196,7 @@ distinct =
 isHappy ::
   Integer
   -> Bool
-isHappy =
-  error "todo: Course.State#isHappy"
+isHappy a = contains 1 (firstRepeat (produce sumOfSquares (fromInteger a))) where
+            sumOfSquares b = sum $ square <$> digitToInt <$> show' b
+            square = join (*)
+-- isHappy = error "asdasd"
