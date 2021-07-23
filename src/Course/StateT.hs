@@ -66,7 +66,11 @@ instance Monad k => Applicative (StateT s k) where
     StateT s k (a -> b)
     -> StateT s k a
     -> StateT s k b
-  f <*> a = StateT (\s -> (\u -> (u, s)) <$> ((fst <$> runStateT f s) <*> (fst <$> runStateT a s)))
+  f <*> a = StateT (\s -> join((\x -> (\y -> let g = runStateT a (snd y) in ((\z -> ((fst y) (fst z), snd z)) <$> g)) <$> (x s)) $ runStateT f))
+  -- f <*> a = StateT (\s -> join((\x -> (\y -> let stt = runStateT f (snd y) in ((\z -> ((fst z) (fst y), snd z)) <$> stt)) <$> (x s)) $ runStateT a))
+  -- f <*> a = let st = (\r t -> runStateT r t)  in StateT (\s -> ((\u -> (\v -> ((fst u) (fst v), s))) <$> (st f s) <*> (st a s)))
+  -- f <*> a = let st = (\r t -> runStateT r t)  in StateT (\s -> ((\u -> (\v -> (u v, s))) <$> (fst <$> st f s) <*> (fst <$> st a s)))
+  -- f <*> a = let st = (\r t -> runStateT r t) in StateT (\s -> (fst <$> st f s) <*> (fst <$> st a s), s)
   -- f <*> a = error "asdasd"
 
 -- | Implement the `Monad` instance for @StateT s k@ given a @Monad k@.
@@ -82,8 +86,8 @@ instance Monad k => Monad (StateT s k) where
     (a -> StateT s k b)
     -> StateT s k a
     -> StateT s k b
-  (=<<) =
-    error "todo: Course.StateT (=<<)#instance (StateT s k)"
+  f =<< a = StateT (\s -> (\x -> let g = f (fst x) in (\z -> (z, s)) <$> g) <$> runStateT a s))
+--    error "todo: Course.StateT (=<<)#instance (StateT s k)"
 
 -- | A `State'` is `StateT` specialised to the `ExactlyOne` functor.
 type State' s a =
