@@ -86,7 +86,8 @@ instance Monad k => Monad (StateT s k) where
     (a -> StateT s k b)
     -> StateT s k a
     -> StateT s k b
-  f =<< a = StateT (\s -> (\x -> let g = f (fst x) in (\z -> (z, s)) <$> g) <$> runStateT a s))
+  f =<< a = StateT (\s -> join((\x -> let y = runStateT (f (fst x)) in (y (snd x))) <$> runStateT a s))
+  -- f =<< a = StateT (\s -> (\x -> let g = f (fst x) in (\z -> (z, s)) <$> g) <$> runStateT a s)
 --    error "todo: Course.StateT (=<<)#instance (StateT s k)"
 
 -- | A `State'` is `StateT` specialised to the `ExactlyOne` functor.
@@ -100,8 +101,8 @@ type State' s a =
 state' ::
   (s -> (a, s))
   -> State' s a
-state' =
-  error "todo: Course.StateT#state'"
+state' f = StateT (\s -> ExactlyOne (f s))
+--  error "todo: Course.StateT#state'"
 
 -- | Provide an unwrapper for `State'` values.
 --
@@ -111,8 +112,7 @@ runState' ::
   State' s a
   -> s
   -> (a, s)
-runState' =
-  error "todo: Course.StateT#runState'"
+runState' st s = runExactlyOne . runStateT st $ s
 
 -- | Run the `StateT` seeded with `s` and retrieve the resulting state.
 --
@@ -123,8 +123,8 @@ execT ::
   StateT s k a
   -> s
   -> k s
-execT =
-  error "todo: Course.StateT#execT"
+execT st s = snd <$> runStateT st s
+--  error "todo: Course.StateT#execT"
 
 -- | Run the `State'` seeded with `s` and retrieve the resulting state.
 --
@@ -134,8 +134,7 @@ exec' ::
   State' s a
   -> s
   -> s
-exec' =
-  error "todo: Course.StateT#exec'"
+exec' st s = snd . runState' st $ s
 
 -- | Run the `StateT` seeded with `s` and retrieve the resulting value.
 --
@@ -146,8 +145,7 @@ evalT ::
   StateT s k a
   -> s
   -> k a
-evalT =
-  error "todo: Course.StateT#evalT"
+evalT st s = fst <$> runStateT st s
 
 -- | Run the `State'` seeded with `s` and retrieve the resulting value.
 --
@@ -157,8 +155,7 @@ eval' ::
   State' s a
   -> s
   -> a
-eval' =
-  error "todo: Course.StateT#eval'"
+eval' st s = fst . runState' st $ s
 
 -- | A `StateT` where the state also distributes into the produced value.
 --
@@ -167,8 +164,7 @@ eval' =
 getT ::
   Applicative k =>
   StateT s k s
-getT =
-  error "todo: Course.StateT#getT"
+getT = StateT (\s -> pure (s, s))
 
 -- | A `StateT` where the resulting state is seeded with the given value.
 --
@@ -181,8 +177,7 @@ putT ::
   Applicative k =>
   s
   -> StateT s k ()
-putT =
-  error "todo: Course.StateT#putT"
+putT s = StateT (\_ -> pure ((), s))
 
 -- | Remove all duplicate elements in a `List`.
 --
