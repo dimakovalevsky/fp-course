@@ -188,8 +188,8 @@ distinct' ::
   Ord a =>
   List a
   -> List a
-distinct' =
-  error "todo: Course.StateT#distinct'"
+distinct' l = eval' (filtering p l) S.empty where
+              p x = (\s -> const (pure (S.notMember x s)) =<< putT (S.insert x s)) =<< getT
 
 -- | Remove all duplicate elements in a `List`.
 -- However, if you see a value greater than `100` in the list,
@@ -206,8 +206,11 @@ distinctF ::
   (Ord a, Num a) =>
   List a
   -> Optional (List a)
-distinctF =
-  error "todo: Course.StateT#distinctF"
+-- distinctF =
+--   error "todo: Course.StateT#distinctF"
+distinctF l = evalT (filtering p l) S.empty where
+              -- p x = (\s -> const (pure (S.notMember x s)) =<< put (S.insert x s)) =<< get
+              p x = (\s -> if x <= 100 then const (StateT (\z -> Full (S.notMember x s, z))) =<< putT (S.insert x s) else StateT (const Empty)) =<< getT
 
 -- | An `OptionalT` is a functor of an `Optional` value.
 data OptionalT k a =
@@ -225,8 +228,7 @@ instance Functor k => Functor (OptionalT k) where
     (a -> b)
     -> OptionalT k a
     -> OptionalT k b
-  (<$>) =
-    error "todo: Course.StateT (<$>)#instance (OptionalT k)"
+  f <$> g = OptionalT ((f <$>) <$> runOptionalT g)
 
 -- | Implement the `Applicative` instance for `OptionalT k` given a Monad k.
 --
@@ -252,19 +254,33 @@ instance Functor k => Functor (OptionalT k) where
 --
 -- >>> runOptionalT $ OptionalT (Full (+1) :. Full (+2) :. Nil) <*> OptionalT (Full 1 :. Empty :. Nil)
 -- [Full 2,Empty,Full 3,Empty]
+--
+-- onFull ::
+--  Applicative k =>
+--  (t -> k (Optional a))
+--  -> Optional t
+--  -> k (Optional a)
+-- onFull g o =
+--  case o of
+--    Empty ->
+--      pure Empty
+--    Full a ->
+--      g a
+
 instance Monad k => Applicative (OptionalT k) where
   pure ::
     a
     -> OptionalT k a
-  pure =
-    error "todo: Course.StateT pure#instance (OptionalT k)"
+  pure x = OptionalT (pure (Full x))
 
   (<*>) ::
     OptionalT k (a -> b)
     -> OptionalT k a
     -> OptionalT k b
-  (<*>) =
-    error "todo: Course.StateT (<*>)#instance (OptionalT k)"
+  u <*> o = let p x = (x <$>) <$> runOptionalT o in OptionalT (join(onFull p <$> runOptionalT u))
+  -- u <*> o = let p = (\x -> (\y -> y <*> pure x) <$> runOptionalT u) in OptionalT (join((onFull p) <$> runOptionalT o))
+  -- OptionalT (join((\z -> (\y -> z <*> y) <$> runOptionalT o ) <$> runOptionalT u))
+--    error "todo: Course.StateT (<*>)#instance (OptionalT k)"
 
 -- | Implement the `Monad` instance for `OptionalT k` given a Monad k.
 --
