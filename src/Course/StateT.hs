@@ -355,7 +355,7 @@ log1 l a = Logger (l :. Nil) a
 -- If there is an element above 100, then abort the entire computation and produce no result.
 -- However, always keep a log. If you abort the computation, produce a log with the value,
 -- "aborting > 100: " followed by the value that caused it.
--- If you see an even number, produce a log message, "even number: " followed by the even number.
+-- If you se
 -- Other numbers produce no log message.
 --
 -- /Tip:/ Use `filtering` and `StateT` over (`OptionalT` over `Logger` with a @Data.Set#Set@).
@@ -365,21 +365,20 @@ log1 l a = Logger (l :. Nil) a
 --
 -- >>> distinctG $ listh [1,2,3,2,6,106]
 -- Logger ["even number: 2","even number: 2","even number: 6","aborting > 100: 106"] Empty
--- distinctG ::
---  (Integral a, Show a) =>
---  List a
---  -> Logger Chars (Optional (List a))
--- distinctG = error "asdasd"
-distinctG l = runStateT (filtering iterate l) (Nil, S.empty) where
-  iterate x = (\y -> let logProceed s = Full (if even x
-                                         then (fst s) ++ (("even number: " ++ show' x) :. Nil)
-                                         else fst s, S.insert x (snd s))
-                         logAbort s = ((fst s) ++ (("aborting > 100: " ++ show' x) :. Nil), snd s)in
-                         -- isMember a (Logger _ st) = S.notMember a st in
-                         if x <= 100
-                         then const (StateT (\z -> Logger (fst z) (Full (S.notMember x (snd z), z)))) =<< putT (logProceed y)
-                         else StateT (\u -> Logger ((fst u) ++ (("aborting > 100: " ++ show' x) :. Nil)) Empty))
---                         else const (StateT (\u -> Logger (fst u) Empty)) =<< putT (logAbort y)) =<< getT
+distinctG ::
+  (Integral a, Show a) =>
+  List a
+  -> Logger Chars (Optional (List a))
+
+distinctG l = runOptionalT (evalT (filtering p l) (Nil, S.empty)) where
+              logProceed a st = (if even a
+                                then ("even number: " ++ show' a) :. Nil
+                                else Nil, S.insert a (snd st))
+              logAbort a st = (("aborting > 100: " ++ show' a) :. Nil, snd st)
+              composeState f g = const (StateT (\y -> OptionalT (Logger (fst y) (f y)))) =<< putT g
+              p x = (\s -> if x <= 100
+                           then composeState (\i -> Full (S.notMember x (snd s), i)) (logProceed x s)
+                           else composeState (const Empty) (logAbort x s)) =<< getT
 
 onFull ::
   Applicative k =>
