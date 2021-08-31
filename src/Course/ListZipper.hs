@@ -76,8 +76,8 @@ instance Functor ListZipper where
 -- >>> (+1) <$> (MLZ (Full (zipper [3,2,1] 4 [5,6,7])))
 -- [4,3,2] >5< [6,7,8]
 instance Functor MaybeListZipper where
-  _ <$> MLZ Empty = isNotZ
-  f <$> MLZ (Full (ListZipper l c r)) = isZ (ListZipper (f <$> l) (f c) (f <$> r))
+   f <$> MLZ olz = MLZ $ (f <$>) <$> olz
+   -- f <$> MLZ (Full (ListZipper l c r)) = isZ (ListZipper (f <$> l) (f c) (f <$> r))
 -- | Convert the given zipper back to a list.
 --
 -- >>> toList <$> toOptional (fromList Nil)
@@ -125,7 +125,6 @@ fromList (h :. t) = isZ (ListZipper Nil h t)
 toOptional ::
   MaybeListZipper a
   -> Optional (ListZipper a)
-toOptional (MLZ Empty) = Empty
 toOptional (MLZ lz) = lz
 
 zipper ::
@@ -219,9 +218,9 @@ setFocus v (ListZipper l _ r) = ListZipper l v r
 hasLeft ::
   ListZipper a
   -> Bool
-hasLeft (ListZipper l _ _) = case l of
-                             Nil -> False
-                             _ -> True
+hasLeft lz = case lefts lz of
+               Nil -> False
+               _ -> True
 
 -- | Returns whether there are values to the right of focus.
 --
@@ -233,9 +232,9 @@ hasLeft (ListZipper l _ _) = case l of
 hasRight ::
   ListZipper a
   -> Bool
-hasRight (ListZipper _ _ r) = case r of
-                              Nil -> False
-                              _ -> True
+hasRight lz = case rights lz of
+                Nil -> False
+                _ -> True
 
 -- | Seek to the left for a location matching a predicate, excluding the
 -- focus.
@@ -262,13 +261,17 @@ findLeft ::
   (a -> Bool)
   -> ListZipper a
   -> MaybeListZipper a
-findLeft p (ListZipper l c r) = iterate (next l c r) where
-                                next Nil _ _ = isNotZ
-                                next (h :. t) f ri = isZ (ListZipper t h (f :. ri))
-                                iterate lz@(MLZ Empty) = lz 
-                                iterate lz@(MLZ (Full (ListZipper lf ce ri))) = if p ce
-                                                                                then lz
-                                                                                else iterate (next lf ce ri)
+findLeft p (ListZipper l c r) = let pts = break p l in case pts of
+                                  (_, Nil) -> isNotZ
+                                  (fs, h :. t) -> isZ (ListZipper t h (reverse fs ++ (c :. r)))
+
+-- findLeft p (ListZipper l c r) = iterate (next l c r) where
+--                                 next Nil _ _ = isNotZ
+--                                 next (h :. t) f ri = isZ (ListZipper t h (f :. ri))
+--                                 iterate lz@(MLZ Empty) = lz
+--                                 iterate lz@(MLZ (Full (ListZipper lf ce ri))) = if p ce
+--                                                                                 then lz
+--                                                                                 else iterate (next lf ce ri)
 
 -- | Seek to the right for a location matching a predicate, excluding the
 -- focus.
@@ -292,13 +295,16 @@ findRight ::
   (a -> Bool)
   -> ListZipper a
   -> MaybeListZipper a
-findRight p (ListZipper l c r) = iterate (next l c r) where
-                                 next _ _ Nil = isNotZ
-                                 next lf ce (h :. t) = isZ (ListZipper (ce :. lf) h t)
-                                 iterate lz@(MLZ Empty) = lz 
-                                 iterate lz@(MLZ (Full (ListZipper lf ce ri))) = if p ce
-                                                                                 then lz
-                                                                                 else iterate (next lf ce ri)
+findRight p (ListZipper l c r) = let pts = break p r in case pts of
+                                  (_, Nil) -> isNotZ
+                                  (fs, h :. t) -> isZ (ListZipper (reverse fs ++ (c :. l)) h t)
+-- findRight p (ListZipper l c r) = iterate (next l c r) where
+--                                  next _ _ Nil = isNotZ
+--                                  next lf ce (h :. t) = isZ (ListZipper (ce :. lf) h t)
+--                                  iterate lz@(MLZ Empty) = lz 
+--                                  iterate lz@(MLZ (Full (ListZipper lf ce ri))) = if p ce
+--                                                                                  then lz
+--                                                                                  else iterate (next lf ce ri)
 
 -- | Move the zipper left, or if there are no elements to the left, go to the far right.
 --
@@ -310,9 +316,7 @@ findRight p (ListZipper l c r) = iterate (next l c r) where
 moveLeftLoop ::
   ListZipper a
   -> ListZipper a
-moveLeftLoop lz@(ListZipper Nil c r) = let rev = reverse (c :. r) in makeLz rev where
-                                                                  makeLz (h :. t) = ListZipper t h Nil
-                                                                  makeLz _ = lz 
+moveLeftLoop (ListZipper Nil c r) = let (h :. t) = reverse (c :. r) in ListZipper t h Nil
 moveLeftLoop (ListZipper (h :. t) c r) = ListZipper t h (c :. r)
 
 -- | Move the zipper right, or if there are no elements to the right, go to the far left.
@@ -325,9 +329,7 @@ moveLeftLoop (ListZipper (h :. t) c r) = ListZipper t h (c :. r)
 moveRightLoop ::
   ListZipper a
   -> ListZipper a
-moveRightLoop lz@(ListZipper l c Nil) = let rev = reverse (c :. l) in makeLz rev where
-                                                                      makeLz (h :. t) = ListZipper Nil h t
-                                                                      makeLz _ = lz 
+moveRightLoop (ListZipper l c Nil) = let (h :. t) = reverse (c :. l) in ListZipper Nil h t
 moveRightLoop (ListZipper l c (h :. t)) = ListZipper (c :. l) h t
 
 -- | Move the zipper one position to the left.
@@ -650,10 +652,11 @@ insertPushRight a (ListZipper l c r) = ListZipper l a (c :. r)
 --   f a b :. zipWith f as bs
 -- zipWith _ _  _ =
 --   Nil
--- 
+--
 instance Applicative ListZipper where
 -- /Tip:/ Use @List#repeat@.
-  pure a = let infL = produce id a in ListZipper infL a infL
+--  pure a = let infL = produce id a in ListZipper infL a infL
+  pure v = ListZipper (repeat v) v (repeat v)
 -- /Tip:/ Use `zipWith`
   (ListZipper a b c) <*> ListZipper l f r = ListZipper (zipWith ($) a l) (b f) (zipWith ($) c r)
 
