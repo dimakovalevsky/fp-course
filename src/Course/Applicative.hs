@@ -152,7 +152,7 @@ lift2 ::
   -> k a
   -> k b
   -> k c
-lift2 f a b = (pure f) <*> a <*> b
+lift2 f a b = f <$> a <*> b
 -- lift2 f a b = (f a) <*> b
 
 -- | Apply a ternary function in the environment.
@@ -318,7 +318,7 @@ sequence ::
   -> k (List a)
 -- sequence Nil = pure Nil
 -- sequence (h :. t) = (:.) <$> h <*> sequence t
-sequence l = foldRight (\x y -> (:.) <$> x <*> y) (pure Nil) l
+sequence = foldRight (\x y -> (:.) <$> x <*> y) (pure Nil)
 
 -- | Replicate an effect a given number of times.
 --

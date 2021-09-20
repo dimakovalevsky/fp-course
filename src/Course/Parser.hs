@@ -609,8 +609,8 @@ phoneParser = digit .:. lift2 (++) phoneBodyParser (const (valueParser Nil) =<< 
 -- Result >< Person 123 "Fred" "Clarkson" True "123-456.789"
 personParser ::
   Parser Person
-personParser = pure Person
-                 <*> ageParser
+personParser = Person
+                 <$> ageParser
                  <*>~ firstNameParser
                  <*>~ surnameParser
                  <*>~ smokerParser
